@@ -1,0 +1,6 @@
+{
+  "name": "The Gap Analyzer",
+  "description": "An AI-powered tool that compares resumes against job descriptions to identify missing skills and calculate a match score.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

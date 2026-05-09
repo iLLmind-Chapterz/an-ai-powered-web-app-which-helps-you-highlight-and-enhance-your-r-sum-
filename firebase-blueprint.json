@@ -1,0 +1,39 @@
+{
+  "entities": {
+    "Analysis": {
+      "title": "Analysis",
+      "description": "A resume analysis result against a job description",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "The UID of the user who owns this analysis" },
+        "jobTitle": { "type": "string" },
+        "resumeText": { "type": "string" },
+        "jdText": { "type": "string" },
+        "result": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "jobTitle", "resumeText", "jdText", "result", "createdAt"]
+    },
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "User specific settings and gamification stats",
+      "type": "object",
+      "properties": {
+        "xp": { "type": "number" },
+        "level": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["xp", "level", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "analyses": {
+      "schema": "Analysis",
+      "description": "Collection of resume analyses"
+    },
+    "users": {
+      "schema": "UserProfile",
+      "description": "Collection of user profiles"
+    }
+  }
+}
