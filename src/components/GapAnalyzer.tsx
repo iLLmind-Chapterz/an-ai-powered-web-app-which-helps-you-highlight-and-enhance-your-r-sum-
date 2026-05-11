@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { FileText, Briefcase, ChevronRight, AlertCircle, CheckCircle2, RotateCcw, Loader2, UploadCloud, FileUp, Download, Sparkles, Wand2, History, X, Clock, Plus, Upload, Trophy, Zap, Target, Award, Star, LogIn, LogOut, User, Mail, Apple, Facebook, Phone, UserPlus } from 'lucide-react';
+import { FileText, Briefcase, ChevronRight, AlertCircle, CheckCircle2, RotateCcw, Loader2, UploadCloud, FileUp, Download, Sparkles, Wand2, History, X, Clock, Plus, Upload, Trophy, Zap, Target, Award, Star, LogIn, LogOut, User, Mail, Apple, Facebook, Phone, UserPlus, ArrowUpRight, ArrowDownRight, Minus, Split } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI, Type } from '@google/genai';
 import {
@@ -60,6 +60,7 @@ export default function GapAnalyzer() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [editingSkill, setEditingSkill] = useState<{ name: string; type: string } | null>(null);
   const [currentDocId, setCurrentDocId] = useState<string | null>(null);
+  const [comparisonTarget, setComparisonTarget] = useState<any | null>(null);
   const [xp, setXp] = useState(0);
   const [level, setLevel] = useState(1);
   const [showLevelUp, setShowLevelUp] = useState(false);
@@ -643,25 +644,38 @@ export default function GapAnalyzer() {
                   </div>
                 ) : (
                   history.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => loadHistoryItem(item)}
-                      className="w-full text-left p-4 rounded-2xl border border-slate-100 hover:border-blue-200 bg-white hover:bg-blue-50/30 transition-all group"
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <span className="font-bold text-sm text-slate-800 flex-1 truncate">{item.jobTitle || item.job_title}</span>
-                        <div className="flex items-center gap-1 text-blue-600">
-                          <span className="text-xs font-black">{(item.result || item.analysis_result).matchScore}%</span>
+                    <div key={item.id} className="relative group">
+                      <button
+                        onClick={() => loadHistoryItem(item)}
+                        className="w-full text-left p-4 pr-16 rounded-2xl border border-slate-100 hover:border-blue-200 bg-white hover:bg-blue-50/30 transition-all"
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <span className="font-bold text-sm text-slate-800 flex-1 truncate">{item.jobTitle || item.job_title}</span>
+                          <div className="flex items-center gap-1 text-blue-600">
+                            <span className="text-xs font-black">{(item.result || item.analysis_result).match_score}%</span>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-medium">
-                          <Clock size={12} />
-                          {new Date(item.createdAt || item.created_at).toLocaleDateString()} at {new Date(item.createdAt || item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-medium">
+                            <Clock size={12} />
+                            {new Date(item.createdAt || item.created_at).toLocaleDateString()} at {new Date(item.createdAt || item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </div>
                         </div>
-                        <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-black text-blue-600 uppercase">Load Report</span>
-                      </div>
-                    </button>
+                      </button>
+                      
+                      {result && item.id !== currentDocId && (
+                        <button 
+                          onClick={() => {
+                            setComparisonTarget(item);
+                            setShowHistory(false);
+                          }}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 p-2 bg-indigo-50 text-indigo-600 rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-indigo-100"
+                          title="Compare with current"
+                        >
+                          <Split size={14} />
+                        </button>
+                      )}
+                    </div>
                   ))
                 )}
               </div>
@@ -1051,6 +1065,19 @@ export default function GapAnalyzer() {
         )}
       </AnimatePresence>
 
+      {/* Comparison Modal */}
+      <AnimatePresence>
+        {comparisonTarget && result && (
+          <ComparisonModal 
+            current={result}
+            past={comparisonTarget.result || comparisonTarget.analysis_result}
+            pastTitle={comparisonTarget.jobTitle || comparisonTarget.job_title}
+            pastDate={comparisonTarget.createdAt || comparisonTarget.created_at}
+            onClose={() => setComparisonTarget(null)}
+          />
+        )}
+      </AnimatePresence>
+
       <footer className="h-12 bg-white border-t border-slate-200 flex items-center px-10 text-[10px] text-slate-400">
         <span>Analysis powered by Gemini-3-Flash • Result generated securely • System Ready</span>
       </footer>
@@ -1082,6 +1109,273 @@ export default function GapAnalyzer() {
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+function ComparisonModal({ current, past, pastTitle, pastDate, onClose }: { 
+  current: AnalysisResult; 
+  past: AnalysisResult; 
+  pastTitle: string;
+  pastDate: string;
+  onClose: () => void; 
+}) {
+  const scoreDiff = current.match_score - past.match_score;
+  
+  // Skill Diffs
+  const bridgedSkills = current.analysis.hard_skills_match.filter(s => 
+    past.analysis.missing_skills.some(ms => ms.toLowerCase() === s.toLowerCase())
+  );
+  
+  const stillMissing = current.analysis.missing_skills.filter(s => 
+    past.analysis.missing_skills.some(ms => ms.toLowerCase() === s.toLowerCase())
+  );
+
+  const newMissing = current.analysis.missing_skills.filter(s => 
+    !past.analysis.missing_skills.some(ms => ms.toLowerCase() === s.toLowerCase())
+  );
+
+  const radarLabels = ['Technical', 'Leadership', 'Experience', 'Domain'];
+  const currentRadarScores = [
+    current.radar_metrics.technical,
+    current.radar_metrics.leadership,
+    current.radar_metrics.experience,
+    current.radar_metrics.domain
+  ];
+  const pastRadarScores = [
+    past.radar_metrics.technical,
+    past.radar_metrics.leadership,
+    past.radar_metrics.experience,
+    past.radar_metrics.domain
+  ];
+
+  const metricDeltas = radarLabels.map((label, index) => {
+    const currentScore = currentRadarScores[index];
+    const pastScore = pastRadarScores[index];
+    const diff = currentScore - pastScore;
+    return { label, currentScore, pastScore, diff };
+  });
+
+  const radarLabelsWithIndicators = radarLabels.map((label, index) => {
+    const diff = currentRadarScores[index] - pastRadarScores[index];
+    if (diff > 2) return `${label} ↑`;
+    if (diff < -2) return `${label} ↓`;
+    return label;
+  });
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="absolute inset-0 bg-slate-900/70 backdrop-blur-md"
+      />
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9, y: 40 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.9, y: 40 }}
+        className="relative w-full max-w-4xl bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+      >
+        {/* Header */}
+        <div className="p-8 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-indigo-600 text-white rounded-2xl shadow-lg shadow-indigo-200">
+              <Split size={24} />
+            </div>
+            <div>
+              <h3 className="text-xl font-black text-slate-800 tracking-tight">Progress Comparison</h3>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Comparing Current vs {new Date(pastDate).toLocaleDateString()}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-white rounded-full text-slate-400 hover:text-slate-900 transition-all">
+            <X size={24} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
+          {/* Main Comparison Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col items-center justify-center text-center">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Match Score Shift</span>
+              <div className="flex items-center gap-3">
+                <span className="text-4xl font-black text-slate-800">{current.match_score}%</span>
+                <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-black ${scoreDiff >= 0 ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                  {scoreDiff > 0 ? <ArrowUpRight size={14} /> : scoreDiff < 0 ? <ArrowDownRight size={14} /> : <Minus size={14} />}
+                  {Math.abs(scoreDiff)}%
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-400 font-bold mt-2 uppercase">WAS {past.match_score}%</p>
+            </div>
+
+            <div className="md:col-span-2 bg-slate-900 rounded-3xl p-6 text-white flex items-center justify-between overflow-hidden relative">
+              <div className="flex-1 relative z-10">
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Context Bridge</span>
+                <h4 className="text-lg font-bold leading-tight mb-2">You have bridged {bridgedSkills.length} critical skill gaps since this version.</h4>
+                <div className="flex flex-wrap gap-2">
+                  {bridgedSkills.map((s, i) => (
+                    <span key={i} className="px-2 py-0.5 bg-green-500/20 text-green-400 rounded text-[9px] font-black uppercase tracking-tighter border border-green-500/30">+{s}</span>
+                  ))}
+                </div>
+              </div>
+              <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/4 opacity-10">
+                <Target size={120} />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Visual Delta */}
+            <div className="bg-white border border-slate-100 rounded-3xl p-8 shadow-sm flex flex-col items-center">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 block text-center">Comparative Mapping</span>
+              <div className="w-full h-[300px]">
+                <RadarChartJS
+                  data={{
+                    labels: radarLabelsWithIndicators,
+                    datasets: [
+                      {
+                        label: 'Current Strategy',
+                        data: currentRadarScores,
+                        backgroundColor: 'rgba(37, 99, 235, 0.25)',
+                        borderColor: 'rgb(37, 99, 235)',
+                        borderWidth: 3,
+                        pointBackgroundColor: 'rgb(37, 99, 235)',
+                        pointRadius: 4,
+                      },
+                      {
+                        label: 'Previous Version',
+                        data: pastRadarScores,
+                        backgroundColor: 'rgba(100, 116, 139, 0.15)',
+                        borderColor: 'rgba(100, 116, 139, 0.5)',
+                        borderWidth: 2,
+                        pointBackgroundColor: 'rgba(100, 116, 139, 0.5)',
+                        borderDash: [5, 5],
+                        pointRadius: 3,
+                      }
+                    ]
+                  }}
+                  options={{
+                    scales: {
+                      r: {
+                        angleLines: { display: true },
+                        suggestedMin: 0,
+                        suggestedMax: 10,
+                        ticks: { display: false, stepSize: 2 },
+                        pointLabels: {
+                          font: { size: 10, family: 'Inter', weight: 'bold' },
+                          color: (context) => {
+                            const index = context.index;
+                            const diff = currentRadarScores[index] - pastRadarScores[index];
+                            if (diff > 2) return '#10b981'; // Green for high growth
+                            if (diff < -2) return '#ef4444'; // Red for decline
+                            return '#64748b';
+                          }
+                        }
+                      }
+                    },
+                    plugins: {
+                      legend: { 
+                        display: true,
+                        position: 'bottom',
+                        labels: {
+                          boxWidth: 8,
+                          usePointStyle: true,
+                          font: { size: 10, weight: 'bold' }
+                        }
+                      }
+                    },
+                    maintainAspectRatio: false
+                  }}
+                />
+              </div>
+
+              {/* Metric Shift Analysis */}
+              <div className="w-full mt-8 grid grid-cols-2 gap-3">
+                {metricDeltas.map((m, i) => (
+                  <div key={i} className={`p-3 rounded-2xl border ${Math.abs(m.diff) > 2 ? 'bg-slate-50 border-slate-200' : 'bg-white border-slate-100 opacity-60'}`}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">{m.label}</span>
+                      {m.diff > 2 ? (
+                        <div className="flex items-center gap-0.5 text-green-600">
+                          <ArrowUpRight size={10} strokeWidth={3} />
+                          <span className="text-[10px] font-black">+{m.diff}</span>
+                        </div>
+                      ) : m.diff < -2 ? (
+                        <div className="flex items-center gap-0.5 text-red-600">
+                          <ArrowDownRight size={10} strokeWidth={3} />
+                          <span className="text-[10px] font-black">{m.diff}</span>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] font-black text-slate-300">
+                          {m.diff > 0 ? `+${m.diff}` : m.diff}
+                        </span>
+                      )}
+                    </div>
+                    <div className="h-1 bg-slate-100 rounded-full overflow-hidden flex">
+                      <div className="h-full bg-slate-300" style={{ width: `${m.pastScore * 10}%` }}></div>
+                      <div className={`h-full ${m.diff > 0 ? 'bg-green-500' : 'bg-red-500'}`} style={{ width: `${Math.abs(m.diff) * 10}%` }}></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Gap Delta */}
+            <div className="space-y-4">
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-4">Resolved Gaps</span>
+                {bridgedSkills.length > 0 ? (
+                  <div className="space-y-2">
+                    {bridgedSkills.map((s, i) => (
+                      <div key={i} className="flex items-center gap-3 p-3 bg-white border border-green-100 rounded-xl">
+                        <div className="p-1 bg-green-50 text-green-600 rounded">
+                          <CheckCircle2 size={14} />
+                        </div>
+                        <span className="text-xs font-bold text-slate-700">{s}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400 italic">No gaps bridged yet. Keep optimizing.</p>
+                )}
+              </div>
+
+              <div className="bg-white border border-slate-200 rounded-2xl p-6">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-4">Remaining Vulnerabilities</span>
+                <div className="space-y-2">
+                  {stillMissing.map((s, i) => (
+                    <div key={i} className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                      <div className="p-1 bg-slate-200 text-slate-500 rounded">
+                        <AlertCircle size={14} />
+                      </div>
+                      <span className="text-xs font-bold text-slate-600">{s}</span>
+                    </div>
+                  ))}
+                  {newMissing.map((s, i) => (
+                    <div key={i} className="flex items-center gap-3 p-3 bg-red-50 border border-red-100 rounded-xl">
+                      <div className="p-1 bg-red-100 text-red-500 rounded">
+                        <Zap size={14} />
+                      </div>
+                      <span className="text-xs font-bold text-red-700">{s}</span>
+                      <span className="text-[8px] font-black text-red-400 uppercase ml-auto tracking-tighter">New Gap Identified</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-center">
+          <button 
+            onClick={onClose}
+            className="px-8 py-3 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl shadow-slate-200"
+          >
+            Acknowledge Changes
+          </button>
+        </div>
+      </motion.div>
     </div>
   );
 }

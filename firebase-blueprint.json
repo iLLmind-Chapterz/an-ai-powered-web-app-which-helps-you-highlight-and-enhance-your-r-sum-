@@ -10,9 +10,10 @@
         "resumeText": { "type": "string" },
         "jdText": { "type": "string" },
         "result": { "type": "object" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["userId", "jobTitle", "resumeText", "jdText", "result", "createdAt"]
+      "required": ["userId", "jobTitle", "resumeText", "jdText", "result", "createdAt", "updatedAt"]
     },
     "UserProfile": {
       "title": "User Profile",

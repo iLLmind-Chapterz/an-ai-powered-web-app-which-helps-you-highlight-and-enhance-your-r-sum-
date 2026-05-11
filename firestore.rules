@@ -29,14 +29,13 @@ service cloud.firestore {
 
     // --- Entity Validations ---
     function isValidAnalysis(data) {
-      return data.keys().hasAll(['userId', 'jobTitle', 'resumeText', 'jdText', 'result', 'createdAt'])
-        && data.keys().size() == 6
+      return data.keys().hasAll(['userId', 'jobTitle', 'resumeText', 'jdText', 'result', 'createdAt', 'updatedAt'])
+        && data.keys().size() == 7
         && data.userId == request.auth.uid
         && data.jobTitle is string && data.jobTitle.size() <= 200
-        && data.resumeText is string && data.resumeText.size() <= 50000
-        && data.jdText is string && data.jdText.size() <= 50000
-        && data.result is map
-        && data.createdAt == request.time;
+        && data.resumeText is string && data.resumeText.size() <= 60000
+        && data.jdText is string && data.jdText.size() <= 60000
+        && data.result is map;
     }
 
     function isValidUserProfile(data) {
@@ -51,14 +50,22 @@ service cloud.firestore {
 
     // 1. Analyses Collection
     match /analyses/{analysisId} {
-      allow create: if isSignedIn() && isValidId(analysisId) && isValidAnalysis(incoming());
+      allow create: if isSignedIn() && isValidId(analysisId) && isValidAnalysis(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
       
+      allow update: if isSignedIn() && isValidId(analysisId) && isValidAnalysis(incoming())
+        && incoming().updatedAt == request.time
+        && incoming().createdAt == existing().createdAt
+        && incoming().userId == existing().userId
+        && incoming().diff(existing()).affectedKeys().hasOnly(['jobTitle', 'resumeText', 'jdText', 'result', 'updatedAt']);
+
       // Allow user to see their own history
-      allow get: if isOwner(existing().userId);
+      allow get: if isOwner(existing().userId) && isValidId(analysisId);
       allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
       
-      // Analyses are generally immutable records
-      allow delete: if isOwner(existing().userId);
+      // Analyses can be deleted by owner
+      allow delete: if isOwner(existing().userId) && isValidId(analysisId);
     }
 
     // 2. Users Collection (Profile/Gamification)
